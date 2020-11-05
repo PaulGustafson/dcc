@@ -8,4 +8,4 @@ cabal update
 cabal install cereal cryptonite
 ```
 
-HN discussion: https://news.ycombinator.com/item?id=24995649#24998291
+HN discussion: https://news.ycombinator.com/item?id=24995649
