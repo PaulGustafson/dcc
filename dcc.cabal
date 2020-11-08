@@ -4,8 +4,8 @@ cabal-version:       >=1.10
 
 name:                dcc
 version:             0.1.0.0
-synopsis:	     decentralized cryptocurrency
-description:      Delegate as much power to the nodes as possible.  Hash algorithms, acceptance criteria, block sizes, and block rewards are all determined by the nodes -- not the core developers.
+synopsis:	     Maximally decentralized cryptocurrency
+description:         Delegate as much power to the nodes as possible.  Hash algorithms, acceptance criteria, block sizes, and block rewards are all determined by the nodes -- not the core developers.
 -- bug-reports:
 license:	     MIT
 license-file:        LICENSE
