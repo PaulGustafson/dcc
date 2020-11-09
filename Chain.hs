@@ -7,109 +7,68 @@ import qualified Data.Map as M
 
 
 type Address = String
-type CoinAmt = Natural
-type Balance = M.Map Address CoinAmt
+type Hash = String
+
+data Entry = Entry {
+  parent    :: Hash
+  , address :: Address
+  , change  :: Integer
+} deriving (Show)
 
 -- transaction
 data Tx = Tx {
   header      :: String
-  , senders   :: [(Address, CoinAmt)] -- TODO: add hash here (for inter-chain trading + validation expiration)
-  , receivers :: [(Address, CoinAmt)]
+  , entries   :: [Entry]
 } deriving (Show)
 
-type Hash = String
 type Nonce = String
 
--- unsigned block
-data UBlock = UBlock {
-  previous    :: Hash
-  , txs       :: [Tx]
-  , owf       :: SBlock -> Hash     -- one-way function
-  , blkRwd    :: SBlock -> Integer  -- block reward
-  , owfSrc    :: String
-  , rwdSrc    :: String
-}
-
--- signed block
-data SBlock = SBlock {
-  ublock  :: UBlock
-  , miner :: Address 
-  , nonce :: Nonce
+data Block = Block {
+  txs         :: [Tx]
+  , reward    :: Entry
+  , algo      :: String      -- one way function Block -> Hash
+  , nonce     :: Nonce
 } deriving (Show)
 
-type Chain = [SBlock]
-type Height = Integer
-type Scale = SBlock -> Maybe Height
+type Chain = [Block]         -- reverse chronological order
+type Height = Natural
+type Scale = Block -> Maybe Height
+type Balance = M.Map Address Natural
 
-sent :: Tx -> CoinAmt
-sent = sum . map snd . senders
+toNatural :: Integer -> Maybe Natural
+toNatural i = if i >= 0 then Just (fromIntegral i) else Nothing
 
-received :: Tx -> CoinAmt
-received = sum . map snd . receivers
+update :: (Address, Integer) -> Balance -> Maybe Balance
+update (addr, change) bal = 
+  let newVal = change + (fromIntegral $ M.findWithDefault 0 addr bal) in
+    liftM (\x -> M.insert addr x bal) $ toNatural newVal
 
--- Can be negative
-fee :: Tx -> Integer
-fee tx = fromIntegral (sent tx) - fromIntegral (received tx)
-
--- Can be negative
-reward :: SBlock -> Integer
-reward sb = (blkRwd (ublock sb) sb) + (sum $ map fee $ txs $ ublock sb)
-
-send :: (Address, CoinAmt) -> Balance -> Maybe Balance
-send (addr, amt) bal = do
-  acct <- M.lookup addr bal
-  if amt < acct
-  then Just $ M.adjust (\x -> x - amt) addr bal
-  else Nothing
-
-receive :: (Address, CoinAmt) -> Balance -> Balance
-receive (addr, amt) bal =
-  if M.member addr bal
-  then M.adjust (+ amt) addr bal
-  else M.insert addr amt bal
-
-app = flip . foldr 
+-- app = flip . foldr 
 appM = flip . foldrM 
 
-addSenders :: Tx -> Balance -> Maybe Balance
-addSenders tx = appM send (senders tx)
-
-addReceivers :: Tx -> Balance -> Balance
-addReceivers tx = app receive (receivers tx)
+addEntry :: Entry -> Balance -> Maybe Balance
+addEntry e = update (address e, change e)
 
 addTx :: Tx -> Balance -> Maybe Balance
-addTx tx = liftM (addReceivers tx) . addSenders tx 
+addTx tx = appM addEntry (entries tx)
 
-addUBlock :: UBlock -> Balance -> Maybe Balance
-addUBlock ub = appM addTx (txs ub)
-
-addReward :: SBlock -> Balance -> Maybe Balance
-addReward sb = let rwd = reward sb in
-  if rwd >= 0
-  then pure . receive (miner sb, fromIntegral $ rwd) 
-  else send (miner sb, fromIntegral $ negate rwd) 
-
-addBlock :: SBlock -> Balance -> Maybe Balance
-addBlock sb = addReward sb <=< addUBlock (ublock sb) 
+addBlock :: Block -> Balance -> Maybe Balance
+addBlock b = addEntry (reward b) <=< appM addTx (txs b)
 
 
-acc :: Scale -> SBlock -> (Hash, Height, Balance) -> Maybe (Hash, Height, Balance)
-acc scale sb (hash, total, bal) = liftM3 (,,)
-  (pure $ (owf (ublock sb)) sb)
-  (if (previous $ ublock sb) == hash
-   then liftM (total +) (scale sb)
-   else Nothing
-  )
-  (addBlock sb bal)
+acc :: Scale -> Block -> (Height, Balance) -> Maybe (Height, Balance)
+acc scale b (total, bal) = liftM2 (,)
+   (liftM (total +) (scale b))
+   (addBlock b bal)
 
-eval :: Scale -> Chain -> (Hash, Height, Balance) -> Maybe (Hash, Height, Balance)
+eval :: Scale -> Chain -> (Height, Balance) -> Maybe (Height, Balance)
 eval scale = appM (acc scale) 
 
+fee :: Tx -> Integer
+fee = sum . (map $ negate . change) . entries
 
-instance Show UBlock where
-  show ub = "previous =  " ++ (show $ previous ub)
-    ++ "txs = " ++ (show $ txs ub)
-    ++ "owf = " ++ (owfSrc ub)
+blockReward :: Block -> Integer
+blockReward b = (change $ reward b) - (sum $ map fee $ txs b)
 
 
 
