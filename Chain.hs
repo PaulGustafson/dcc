@@ -9,6 +9,7 @@ import qualified Data.Map as M
 type Address = String
 type Hash = String
 
+-- ledger entry
 data Entry = Entry {
   parent    :: Hash
   , address :: Address
@@ -43,7 +44,6 @@ update (addr, change) bal =
   let newVal = change + (fromIntegral $ M.findWithDefault 0 addr bal) in
     liftM (\x -> M.insert addr x bal) $ toNatural newVal
 
--- app = flip . foldr 
 appM = flip . foldrM 
 
 addEntry :: Entry -> Balance -> Maybe Balance
