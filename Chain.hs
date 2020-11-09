@@ -34,6 +34,7 @@ data Block = Block {
 type Chain = [Block]         -- reverse chronological order
 type Height = Natural
 type Scale = Block -> Maybe Height
+type Parser = String -> Maybe (Block -> Hash)
 type Balance = M.Map Address Natural
 
 toNatural :: Integer -> Maybe Natural
@@ -55,14 +56,19 @@ addTx tx = appM addEntry (entries tx)
 addBlock :: Block -> Balance -> Maybe Balance
 addBlock b = addEntry (reward b) <=< appM addTx (txs b)
 
+parents :: Block -> [Hash]
+parents b = (parent $ reward b) : (map parent $ concat $ map entries $ txs b)
 
-acc :: Scale -> Block -> (Height, Balance) -> Maybe (Height, Balance)
-acc scale b (total, bal) = liftM2 (,)
+acc :: Parser -> Scale -> Block -> (Hash, Height, Balance) -> Maybe (Hash, Height, Balance)
+acc parse scale b (hash, total, bal) = liftM3 (,,)
+   (if hash `elem` parents b
+    then ap (parse $ algo b) (pure b)
+    else Nothing)
    (liftM (total +) (scale b))
    (addBlock b bal)
 
-eval :: Scale -> Chain -> (Height, Balance) -> Maybe (Height, Balance)
-eval scale = appM (acc scale) 
+eval :: Parser -> Scale -> Chain -> (Hash, Height, Balance) -> Maybe (Hash, Height, Balance)
+eval parse scale = appM (acc parse scale) 
 
 fee :: Tx -> Integer
 fee = sum . (map $ negate . change) . entries

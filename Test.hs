@@ -15,13 +15,13 @@ test_algo2 :: Block -> Hash
 test_algo2 = show . hashWith SHA512 . encode . show
 test_algo2_src = "show . hashWith SHA512 . encode . show"
 
-parse :: M.Map String (Block -> Hash)
-parse = M.fromList [(test_algo1_src, test_algo1), (test_algo2_src, test_algo2)]
+test_parser :: Parser
+test_parser s = M.lookup s $ M.fromList [(test_algo1_src, test_algo1), (test_algo2_src, test_algo2)]
 
 
 test_scale :: Scale
 test_scale b = do
-  owf <- M.lookup (algo b) parse
+  owf <-  test_parser (algo b)
   rwdF <- toNatural $ 10 - blockReward b
   hashF <- pure $ fromIntegral $ length $ filter (== '0') $ owf b
   pure $ hashF * rwdF
@@ -50,9 +50,9 @@ test_chain = [test_block]
 test_addBlock = addBlock test_block test_bal
 
 -- initial conditions
-test_ic = (0, test_bal)
+test_ic = ("", 0, test_bal)
 
-test_eval = eval test_scale test_chain test_ic
+test_eval = eval test_parser test_scale test_chain test_ic
 test_hash = test_algo1 test_block
 
 test_tx2 = Tx {
@@ -69,5 +69,5 @@ test_block2 = Block {
 
 test_chain2 :: Chain
 test_chain2 = [test_block2, test_block]
-test_hash2 = test_algo2 test_block2
-test_eval2 = eval test_scale test_chain2 test_ic
+
+test_eval2 = eval test_parser test_scale test_chain2 test_ic
