@@ -1,12 +1,12 @@
 # dcc
 
-Proof of concept for a blockchain with variable hash functions for ASIC resistance.  Any miner can use whatever hash function and acceptance criterion they want (in place of SHA256 and some number of leading zeros for bitcoin).  Every node must define its own "scale" function, measuring the difficulty of any hash function it chooses to accept.
+Proof of concept for a blockchain with variable hash functions for ASIC resistance.  Any miner can use whatever hash function they want (in place of SHA256 for bitcoin).  Every node must define its own "scale" function, measuring the difficulty of any hash function it chooses to accept.
 
 ### FAQ
 
 **Is there a simple explanation for non-technical people?**
 
-The basic idea is make the algorithm maximally decentralized.  Give as much power to the nodes as possible, then the miners, and the least to the core developers.   More specifically, any choice that can be delegated to nodes should be.  So the nodes get to choose how much to value each hash algos, the block rewards, and the block size.  Subject to market constraints determined by the nodes, the miners can use whatever hash algo, block reward, and block size they want -- all on the same chain.    The core devs should only make updates if there is something that can't be fixed by updating these parameters -- ideally never.
+The basic idea is to make the algorithm maximally decentralized.  Give as much power to the nodes as possible, then the miners, and the least to the core developers.   More specifically, any choice that can be delegated to nodes should be.  So the nodes get to choose how much to value each hash algos, the block rewards, and the block size.  Subject to market constraints determined by the nodes, the miners can use whatever hash algo, block reward, and block size they want -- all on the same chain.    The core devs should only make updates if there is something that can't be fixed by updating these parameters -- ideally never.
 
 
 **If both mining and non-mining nodes must manually (subjectively) adjust their criteria for block acceptance, what impetus is there for the network to stabilize to any sort of objective state?** 
