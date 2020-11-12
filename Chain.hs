@@ -8,6 +8,7 @@ import qualified Data.Map as M
 
 type Address = String
 type Hash = String
+type CoinAmt = Natural
 
 -- ledger entry
 data Entry = Entry {
@@ -26,16 +27,24 @@ type Nonce = String
 
 data Block = Block {
   txs         :: [Tx]
-  , reward    :: Entry
-  , algo      :: String      -- one way function Block -> Hash
-  , nonce     :: Nonce
-} deriving (Show)
+  , reward    :: Entry    
+  , algo      :: String       -- one way function Block -> Hash
+  , nonce     :: Nonce        
+} deriving (Show)             
+
+-- Idea: make "algo" a map from a fixed parameter space to a fixed function space
+-- Use the hash as a seed for a dataset generator (or dataset constraint)
+-- Hash -> Dataset (preagreed)
+-- Acceptance criterion (function with at most specified loss)
+-- BTC : ByteString must have specified format (from tx pool) except for nonce
+-- Acceptance criterion: n-projection to 0 has 0 loss
 
 type Chain = [Block]         -- reverse chronological order
-type Height = Natural
-type Scale = Block -> Maybe Height
+type Weight = Natural
+type Scale = Block -> Maybe Weight
 type Parser = String -> Maybe (Block -> Hash)
-type Balance = M.Map Address Natural
+type Balance = M.Map Address CoinAmt
+type BlockDB = M.Map Hash Block
 
 toNatural :: Integer -> Maybe Natural
 toNatural i = if i >= 0 then Just (fromIntegral i) else Nothing
@@ -59,7 +68,8 @@ addBlock b = addEntry (reward b) <=< appM addTx (txs b)
 parents :: Block -> [Hash]
 parents b = (parent $ reward b) : (map parent $ concat $ map entries $ txs b)
 
-acc :: Parser -> Scale -> Block -> (Hash, Height, Balance) -> Maybe (Hash, Height, Balance)
+acc :: Parser -> Scale -> Block -> (Hash, Weight, Balance)
+  -> Maybe (Hash, Weight, Balance)
 acc parse scale b (hash, total, bal) = liftM3 (,,)
    (if hash `elem` parents b
     then ap (parse $ algo b) (pure b)
@@ -67,7 +77,8 @@ acc parse scale b (hash, total, bal) = liftM3 (,,)
    (liftM (total +) (scale b))
    (addBlock b bal)
 
-eval :: Parser -> Scale -> Chain -> (Hash, Height, Balance) -> Maybe (Hash, Height, Balance)
+eval :: Parser -> Scale -> Chain -> (Hash, Weight, Balance)
+  -> Maybe (Hash, Weight, Balance)
 eval parse scale = appM (acc parse scale) 
 
 fee :: Tx -> Integer
@@ -75,6 +86,7 @@ fee = sum . (map $ negate . change) . entries
 
 blockReward :: Block -> Integer
 blockReward b = (change $ reward b) - (sum $ map fee $ txs b)
+
 
 
 
