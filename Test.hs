@@ -30,16 +30,17 @@ test_scale b = do
 test_bal :: Balance
 test_bal = M.fromList $ zip ["alice", "bob", "fred", "edna"] $ repeat 100
 
-test_entry = Entry "" "alice" (-20)
+test_sig = Just ("Fake public key", "Fake crypted tx")
+test_entry = Entry "" "alice" (-20) test_sig
 
 test_tx = Tx {
   header = "Hello, world"
-  , entries = [Entry "" "alice" (-20), Entry "" "louis" 10]
+  , entries = [Entry "" "alice" (-20) test_sig, Entry "" "louis" 10 test_sig]
 }
 
 test_block = Block {
    txs = [test_tx]
-   , reward = Entry "" "fred" 1
+   , reward = Entry "" "fred" 1 test_sig
    , algo = test_algo1_src
    , nonce = "test_nonce"
 }
@@ -57,12 +58,12 @@ test_hash = test_algo1 test_block
 
 test_tx2 = Tx {
   header = "Transaction 2"
-  , entries = [Entry test_hash "alice" (-20), Entry test_hash "louis" 10]
+  , entries = [Entry test_hash "alice" (-20) test_sig, Entry test_hash "louis" 10 test_sig]
 }
   
 test_block2 = Block {
    txs = [test_tx2]
-   , reward = Entry test_hash "fred" 2
+   , reward = Entry test_hash "fred" 2 test_sig
    , algo = test_algo2_src
    , nonce = "test_nonce2"
 }

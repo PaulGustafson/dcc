@@ -8,36 +8,35 @@ import qualified Data.Map as M
 
 type Address = String
 type Hash = String
-type CoinAmt = Natural
+type CoinAmt = Natural   -- coin amount
+type CoinUpd = Integer   -- coin update
+type PublicKey = String
+type SignedString = String
+type Signature = (PublicKey, SignedString)
 
 -- ledger entry
 data Entry = Entry {
   parent    :: Hash
   , address :: Address
-  , change  :: Integer
+  , change  :: CoinUpd
+  , sig     :: Maybe Signature  -- signature of containing transaction if sending
 } deriving (Show)
 
 -- transaction
 data Tx = Tx {
-  header      :: String
-  , entries   :: [Entry]
+  header        :: String
+  , entries     :: [Entry]
 } deriving (Show)
 
 type Nonce = String
 
 data Block = Block {
   txs         :: [Tx]
-  , reward    :: Entry    
+  , reward    :: Entry
   , algo      :: String       -- one way function Block -> Hash
   , nonce     :: Nonce        
 } deriving (Show)             
 
--- Idea: make "algo" a map from a fixed parameter space to a fixed function space
--- Use the hash as a seed for a dataset generator (or dataset constraint)
--- Hash -> Dataset (preagreed)
--- Acceptance criterion (function with at most specified loss)
--- BTC : ByteString must have specified format (from tx pool) except for nonce
--- Acceptance criterion: n-projection to 0 has 0 loss
 
 type Chain = [Block]         -- reverse chronological order
 type Weight = Natural
@@ -49,7 +48,7 @@ type BlockDB = M.Map Hash Block
 toNatural :: Integer -> Maybe Natural
 toNatural i = if i >= 0 then Just (fromIntegral i) else Nothing
 
-update :: (Address, Integer) -> Balance -> Maybe Balance
+update :: (Address, CoinUpd) -> Balance -> Maybe Balance
 update (addr, change) bal = 
   let newVal = change + (fromIntegral $ M.findWithDefault 0 addr bal) in
     liftM (\x -> M.insert addr x bal) $ toNatural newVal
@@ -81,10 +80,10 @@ eval :: Parser -> Scale -> Chain -> (Hash, Weight, Balance)
   -> Maybe (Hash, Weight, Balance)
 eval parse scale = appM (acc parse scale) 
 
-fee :: Tx -> Integer
+fee :: Tx -> CoinUpd
 fee = sum . (map $ negate . change) . entries
 
-blockReward :: Block -> Integer
+blockReward :: Block -> CoinUpd
 blockReward b = (change $ reward b) - (sum $ map fee $ txs b)
 
 
