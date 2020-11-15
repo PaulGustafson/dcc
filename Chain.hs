@@ -68,6 +68,7 @@ appM = flip . foldrM
 addEntry :: Entry -> Balance -> Maybe Balance
 addEntry e = update (address e, change e)
 
+-- TODO: validate signatures of senders
 addTx :: Tx -> Balance -> Maybe Balance
 addTx tx = appM addEntry (entries tx)
 
