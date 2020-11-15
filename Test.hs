@@ -15,7 +15,7 @@ test_algo2 :: Block -> Hash
 test_algo2 = show . hashWith SHA512 . encode . show
 test_algo2_src = "show . hashWith SHA512 . encode . show"
 
-test_parser :: Parser
+test_parser :: Parser (Block -> Hash)
 test_parser s = M.lookup s $ M.fromList [(test_algo1_src, test_algo1), (test_algo2_src, test_algo2)]
 
 
@@ -27,20 +27,30 @@ test_scale b = do
   pure $ hashF * rwdF
 
 
-test_bal :: Balance
-test_bal = M.fromList $ zip ["alice", "bob", "fred", "edna"] $ repeat 100
+test_addr :: [Address]
+test_addr =  map (flip Address "fake_addr_algo") $ ["alice", "bob", "fred", "edna"]
+alice = test_addr !! 0
+bob = test_addr !! 1
+fred = test_addr !! 2
+edna = test_addr !! 3
+louis = Address "louis" "fake_addr_algo"
 
-test_sig = Just ("Fake public key", "Fake crypted tx")
-test_entry = Entry "" "alice" (-20) test_sig
+test_bal :: Balance
+test_bal = M.fromList $ zip test_addr $ repeat 100
+
+
+
+test_sig = Just (PublicKey "Fake public key" "Fake PKE algo", "Fake crypted tx")
+test_entry = Entry "" (Address "alice" "fake_addr_algo") (-20) test_sig
 
 test_tx = Tx {
   header = "Hello, world"
-  , entries = [Entry "" "alice" (-20) test_sig, Entry "" "louis" 10 test_sig]
+  , entries = [Entry "" alice (-20) test_sig, Entry "" louis 10 test_sig]
 }
 
 test_block = Block {
    txs = [test_tx]
-   , reward = Entry "" "fred" 1 test_sig
+   , reward = Entry "" fred 1 test_sig
    , algo = test_algo1_src
    , nonce = "test_nonce"
 }
@@ -58,12 +68,12 @@ test_hash = test_algo1 test_block
 
 test_tx2 = Tx {
   header = "Transaction 2"
-  , entries = [Entry test_hash "alice" (-20) test_sig, Entry test_hash "louis" 10 test_sig]
+  , entries = [Entry test_hash alice (-20) test_sig, Entry test_hash louis 10 test_sig]
 }
   
 test_block2 = Block {
    txs = [test_tx2]
-   , reward = Entry test_hash "fred" 2 test_sig
+   , reward = Entry test_hash fred 2 test_sig
    , algo = test_algo2_src
    , nonce = "test_nonce2"
 }

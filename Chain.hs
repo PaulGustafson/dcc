@@ -6,11 +6,21 @@ import Data.Foldable
 import qualified Data.Map as M
 
 
-type Address = String
+type Algo = String   -- complete description of a function 
+
+data PublicKey = PublicKey {
+  rawPubKey        :: String
+  , encryptionAlgo :: Algo     -- PublicKey x EncryptedString -> DecryptedString
+} deriving (Show)
+
+data Address = Address {
+  rawAddr            :: String
+  , pubKeyToAddr     :: Algo      -- PublicKey -> Address
+} deriving (Show, Ord, Eq)
+
 type Hash = String
 type CoinAmt = Natural   -- coin amount
-type CoinUpd = Integer   -- coin update
-type PublicKey = String
+type CoinUpd = Integer   -- coin update                 
 type SignedString = String
 type Signature = (PublicKey, SignedString)
 
@@ -19,7 +29,7 @@ data Entry = Entry {
   parent    :: Hash
   , address :: Address
   , change  :: CoinUpd
-  , sig     :: Maybe Signature  -- signature of containing transaction if sending
+  , sig     :: Maybe Signature  
 } deriving (Show)
 
 -- transaction
@@ -33,7 +43,7 @@ type Nonce = String
 data Block = Block {
   txs         :: [Tx]
   , reward    :: Entry
-  , algo      :: String       -- one way function Block -> Hash
+  , algo      :: Algo       -- one way function Block -> Hash
   , nonce     :: Nonce        
 } deriving (Show)             
 
@@ -41,7 +51,7 @@ data Block = Block {
 type Chain = [Block]         -- reverse chronological order
 type Weight = Natural
 type Scale = Block -> Maybe Weight
-type Parser = String -> Maybe (Block -> Hash)
+type Parser a = Algo -> Maybe a
 type Balance = M.Map Address CoinAmt
 type BlockDB = M.Map Hash Block
 
@@ -67,7 +77,7 @@ addBlock b = addEntry (reward b) <=< appM addTx (txs b)
 parents :: Block -> [Hash]
 parents b = (parent $ reward b) : (map parent $ concat $ map entries $ txs b)
 
-acc :: Parser -> Scale -> Block -> (Hash, Weight, Balance)
+acc :: Parser (Block -> Hash) -> Scale -> Block -> (Hash, Weight, Balance)
   -> Maybe (Hash, Weight, Balance)
 acc parse scale b (hash, total, bal) = liftM3 (,,)
    (if hash `elem` parents b
@@ -76,7 +86,7 @@ acc parse scale b (hash, total, bal) = liftM3 (,,)
    (liftM (total +) (scale b))
    (addBlock b bal)
 
-eval :: Parser -> Scale -> Chain -> (Hash, Weight, Balance)
+eval :: Parser (Block -> Hash) -> Scale -> Chain -> (Hash, Weight, Balance)
   -> Maybe (Hash, Weight, Balance)
 eval parse scale = appM (acc parse scale) 
 
