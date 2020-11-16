@@ -9,8 +9,8 @@ import qualified Data.Map as M
 type Algo = String   -- complete description of a function 
 
 data PublicKey = PublicKey {
-  rawPubKey        :: String
-  , encryptionAlgo :: Algo     -- PublicKey x EncryptedString -> DecryptedString
+  rawPubKey   :: String
+  , pkeAlgo   :: Algo         -- Signed a -> String
 } deriving (Show)
 
 data Address = Address {
@@ -20,29 +20,34 @@ data Address = Address {
 
 type Hash = String
 type CoinAmt = Natural   -- coin amount
-type CoinUpd = Integer   -- coin update                 
-type SignedString = String
-type Signature = (PublicKey, SignedString)
+type CoinUpd = Integer   -- coin update
+
+data Encrypted a = Encrypted {
+  pubKey   :: PublicKey
+  , encrypted  :: String
+} deriving (Show)
+
+type Decrypt a = Encrypted a -> String
 
 -- ledger entry
-data Entry = Entry {
+data Entry a = Entry {
   parent    :: Hash
   , address :: Address
   , change  :: CoinUpd
-  , sig     :: Maybe Signature  
+  , sig     :: Maybe (Encrypted a)
 } deriving (Show)
 
 -- transaction
 data Tx = Tx {
   header        :: String
-  , entries     :: [Entry]
+  , entries     :: [Entry Tx]
 } deriving (Show)
 
 type Nonce = String
 
 data Block = Block {
   txs         :: [Tx]
-  , reward    :: Entry
+  , reward    :: Entry Block
   , algo      :: Algo       -- one way function Block -> Hash
   , nonce     :: Nonce        
 } deriving (Show)             
@@ -65,31 +70,58 @@ update (addr, change) bal =
 
 appM = flip . foldrM 
 
-addEntry :: Entry -> Balance -> Maybe Balance
-addEntry e = update (address e, change e)
+class (Show a) => Signable a where
+  unsign :: a -> a
 
--- TODO: validate signatures of senders
-addTx :: Tx -> Balance -> Maybe Balance
-addTx tx = appM addEntry (entries tx)
+instance Signable (Entry a) where
+  unsign e = e {sig = Nothing}
 
-addBlock :: Block -> Balance -> Maybe Balance
-addBlock b = addEntry (reward b) <=< appM addTx (txs b)
+instance Signable Tx where
+  unsign tx = tx { entries = map unsign (entries tx) }
+
+instance Signable Block where
+  unsign b = b { txs = map unsign (txs b)
+               , reward = unsign (reward b) }
+
+
+validate :: (Signable a) => Parser (Decrypt a) -> Encrypted a -> a -> Bool
+validate parser enc signed = case parser (pkeAlgo $ pubKey $ enc) of
+  Nothing -> False
+  Just pke -> pke enc == (show $ unsign $ signed)
+
+addEntry :: (Signable a) => Parser (Decrypt a) -> a -> Entry a
+  -> Balance -> Maybe Balance
+addEntry parser container entry bal = 
+    if change entry < 0
+    then do
+      s <- sig entry
+      if not $ validate parser s container
+      then Nothing
+      else update (address entry, change entry) bal
+    else update (address entry, change entry) bal
+
+addTx :: Parser (Decrypt Tx) -> Tx -> Balance -> Maybe Balance
+addTx p tx = appM (addEntry p tx) (entries tx)
+
+addBlock :: Parser (Decrypt Tx) -> Parser (Decrypt Block)
+  -> Block -> Balance -> Maybe Balance
+addBlock pt pb b = addEntry pb b (reward b) <=< appM (addTx pt) (txs b)
 
 parents :: Block -> [Hash]
 parents b = (parent $ reward b) : (map parent $ concat $ map entries $ txs b)
 
-acc :: Parser (Block -> Hash) -> Scale -> Block -> (Hash, Weight, Balance)
-  -> Maybe (Hash, Weight, Balance)
-acc parse scale b (hash, total, bal) = liftM3 (,,)
+acc :: Parser (Decrypt Tx) -> Parser (Decrypt Block)  -> Parser (Block -> Hash)
+  -> Scale -> Block -> (Hash, Weight, Balance) -> Maybe (Hash, Weight, Balance)
+acc pt pb parse scale b (hash, total, bal) = liftM3 (,,)
    (if hash `elem` parents b
     then ap (parse $ algo b) (pure b)
     else Nothing)
    (liftM (total +) (scale b))
-   (addBlock b bal)
+   (addBlock pt pb b bal)
 
-eval :: Parser (Block -> Hash) -> Scale -> Chain -> (Hash, Weight, Balance)
-  -> Maybe (Hash, Weight, Balance)
-eval parse scale = appM (acc parse scale) 
+eval :: Parser (Decrypt Tx) -> Parser (Decrypt Block) -> Parser (Block -> Hash)
+  -> Scale -> Chain -> (Hash, Weight, Balance) -> Maybe (Hash, Weight, Balance)
+eval pt pb parse scale = appM (acc pt pb parse scale) 
 
 fee :: Tx -> CoinUpd
 fee = sum . (map $ negate . change) . entries
