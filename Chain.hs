@@ -6,28 +6,28 @@ import Data.Foldable
 import qualified Data.Map as M
 
 
-type Algo = String   -- complete description of a function 
+type Source a = String   -- complete description of a function 
 
-data PublicKey = PublicKey {
-  rawPubKey   :: String
-  , pkeAlgo   :: Algo         -- Signed a -> String
+data PublicKey  = PublicKey {
+  rawPubKey      :: String
+  , pkeDecrypt   :: Source (PublicKey -> String -> String)
 } deriving (Show)
 
 data Address = Address {
   rawAddr            :: String
-  , pubKeyToAddr     :: Algo      -- PublicKey -> Address
+  , pubKeyToAddr     :: Source (PublicKey -> Address)
 } deriving (Show, Ord, Eq)
 
-type Hash = String
-type CoinAmt = Natural   -- coin amount
-type CoinUpd = Integer   -- coin update
-
 data Encrypted a = Encrypted {
-  pubKey   :: PublicKey
+  pubKey       :: PublicKey 
   , encrypted  :: String
 } deriving (Show)
 
 type Decrypt a = Encrypted a -> String
+
+type Hash = String
+type CoinAmt = Natural   -- coin amount
+type CoinUpd = Integer   -- coin update
 
 -- ledger entry
 data Entry a = Entry {
@@ -48,7 +48,7 @@ type Nonce = String
 data Block = Block {
   txs         :: [Tx]
   , reward    :: Entry Block
-  , algo      :: Algo       -- one way function Block -> Hash
+  , algo      :: Source (Block -> Hash)
   , nonce     :: Nonce        
 } deriving (Show)             
 
@@ -56,19 +56,9 @@ data Block = Block {
 type Chain = [Block]         -- reverse chronological order
 type Weight = Natural
 type Scale = Block -> Maybe Weight
-type Parser a = Algo -> Maybe a
+type Parser a = Source a -> Maybe a
 type Balance = M.Map Address CoinAmt
-type BlockDB = M.Map Hash Block
 
-toNatural :: Integer -> Maybe Natural
-toNatural i = if i >= 0 then Just (fromIntegral i) else Nothing
-
-update :: (Address, CoinUpd) -> Balance -> Maybe Balance
-update (addr, change) bal = 
-  let newVal = change + (fromIntegral $ M.findWithDefault 0 addr bal) in
-    liftM (\x -> M.insert addr x bal) $ toNatural newVal
-
-appM = flip . foldrM 
 
 class (Show a) => Signable a where
   unsign :: a -> a
@@ -84,8 +74,17 @@ instance Signable Block where
                , reward = unsign (reward b) }
 
 
+toNatural :: Integer -> Maybe Natural
+toNatural i = if i >= 0 then Just (fromIntegral i) else Nothing
+
+update :: (Address, CoinUpd) -> Balance -> Maybe Balance
+update (addr, change) bal = 
+  let newVal = change + (fromIntegral $ M.findWithDefault 0 addr bal) in
+    liftM (\x -> M.insert addr x bal) $ toNatural newVal
+
+
 validate :: (Signable a) => Parser (Decrypt a) -> Encrypted a -> a -> Bool
-validate parser enc signed = case parser (pkeAlgo $ pubKey $ enc) of
+validate parser enc signed = case parser (pkeDecrypt $ pubKey $ enc) of
   Nothing -> False
   Just pke -> pke enc == (show $ unsign $ signed)
 
@@ -99,6 +98,8 @@ addEntry parser container entry bal =
       then Nothing
       else update (address entry, change entry) bal
     else update (address entry, change entry) bal
+
+appM = flip . foldrM
 
 addTx :: Parser (Decrypt Tx) -> Tx -> Balance -> Maybe Balance
 addTx p tx = appM (addEntry p tx) (entries tx)
