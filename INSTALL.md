@@ -15,7 +15,7 @@ cabal build
 nix-shell
 cabal repl
 ```
-and then (e.g. "import Test" and "test_eval2" in the repl)
+and then, e.g., "import Test" and "test_eval2" in the repl
 
 
 ## Misc
