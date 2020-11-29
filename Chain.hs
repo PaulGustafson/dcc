@@ -60,6 +60,7 @@ type Parser a = Source a -> Maybe a
 type Balance = M.Map Address CoinAmt
 
 
+-- shallow unsign (does not unsign more than top level container)
 class (Show a) => Signable a where
   unsign :: a -> a
 
@@ -70,8 +71,7 @@ instance Signable Tx where
   unsign tx = tx { entries = map unsign (entries tx) }
 
 instance Signable Block where
-  unsign b = b { txs = map unsign (txs b)
-               , reward = unsign (reward b) }
+  unsign b = b { reward = unsign (reward b) }
 
 
 toNatural :: Integer -> Maybe Natural

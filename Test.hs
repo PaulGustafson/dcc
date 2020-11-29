@@ -82,13 +82,15 @@ test_ic = ("", 0, test_bal)
 
 test_eval = eval test_sig_parse test_sig_parse test_parser test_scale test_chain test_ic
 test_hash = test_algo1 test_block
-
+  
 test_tx2p = Tx {
   header = "Transaction 2"
   , entries = [Entry test_hash alice (-20) Nothing, Entry test_hash louis 10 Nothing]
 }
 
-test_tx2 = test_tx2p { entries = [Entry "" alice (-20) (test_sig test_tx2p), Entry "" louis 10 Nothing] }
+--TODO: write signing function
+
+test_tx2 = test_tx2p { entries = [Entry test_hash alice (-20) (test_sig test_tx2p), Entry test_hash louis 10 Nothing] }
 
   
 test_block2p = Block {
@@ -103,6 +105,15 @@ test_block2 = test_block2p { reward = Entry test_hash fred 2 (test_sig test_bloc
 test_chain2 :: Chain
 test_chain2 = [test_block2, test_block]
 
--- FIXME
+
+assert_unsign = (show test_tx2p) == (show $ unsign test_tx2)
+
+
+test_addEntry2 = addEntry test_sig_parse test_tx2 (Entry "" alice (-20) (test_sig test_tx2p)) test_bal
+
+
+test_addBlock2 = addBlock test_sig_parse test_sig_parse test_block2 test_bal
+
+
 test_eval2 = eval test_sig_parse test_sig_parse test_parser test_scale test_chain2 test_ic
 
